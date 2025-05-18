@@ -40,7 +40,7 @@ docker run -p 5000:5000 asl-api
 2. In the Body tab, select `raw` and choose `JSON`.
 3. Enter:
     ```json
-    { "text": "hello i am ghaly, and i am 15 years old, and i love math" }
+    { "text": "hello i am ghaly, and i am 15 years old" }
     ```
 4. Click Send. You will receive the corrected text and image URLs.
 
