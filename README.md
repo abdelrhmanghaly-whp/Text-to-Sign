@@ -76,7 +76,3 @@ docker run -p 5000:5000 asl-api
 - The API corrects grammar and removes repeated or near-duplicate phrases from input.
 - For best results with audio, use clear speech and supported formats (WAV/MP3).
 - The API returns a list of image URLs for each letter in the corrected text, with `null` separating words.
-
----
-
-For any issues or questions, please contact the backend developer. 
