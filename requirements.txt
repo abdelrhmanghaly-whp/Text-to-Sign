@@ -1,0 +1,9 @@
+Flask
+flask-cors
+transformers
+torch
+SpeechRecognition
+pydub
+sounddevice
+scipy
+gunicorn 
