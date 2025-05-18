@@ -9,7 +9,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download the transformers model
+
 RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='prithivida/grammar_error_correcter_v1')"
 
 COPY . .
