@@ -47,7 +47,7 @@ docker run -p 5000:5000 asl-api
 #### Example Output
 ```json
 {
-  "corrected_text": "hello i am ghaly, and i am 15 years old, and i love math",
+  "corrected_text": "hello i am ghaly, and i am 15 years old",
   "asl_image_urls": [
     "/asl_images/H.jpg",
     "/asl_images/E.jpg",
