@@ -23,26 +23,71 @@ grammar_spell_checker = pipeline(
 
 
 def correct_text(input_text):
-    result = grammar_spell_checker(
-        input_text, max_length=100, num_return_sequences=1)
-    text = result[0]['generated_text'].strip()
-    print("MODEL OUTPUT:", repr(text))
     
-    phrases = [s.strip() for s in re.split(r'[.؟!?,]+', text) if s.strip()]
-    unique_phrases = []
-    for s in phrases:
-        s_lower = s.lower()
+    input_text = input_text.strip()
+    
+    
+    words = input_text.split()
+    if len(words) <= 2 and all(word.replace(',', '').replace('.', '').isalpha() or word.isdigit() for word in words):
+        return input_text
+    
+    try:
+        result = grammar_spell_checker(
+            input_text, max_length=150, num_return_sequences=1)
+        text = result[0]['generated_text'].strip()
+        print("MODEL OUTPUT:", repr(text))
         
-        if not any(difflib.SequenceMatcher(None, s_lower, up.lower()).ratio() > 0.9 for up in unique_phrases):
-            unique_phrases.append(s)
-    return '. '.join(unique_phrases)
+        
+        if len(text) > len(input_text) * 3:  
+            print("Model output too long, using original text")
+            return input_text
+            
+       
+        text = re.sub(r'^(Text:|text:)\s*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'[=]{2,}', '', text)  
+        text = re.sub(r'\s+', ' ', text)  
+        
+        phrases = [s.strip() for s in re.split(r'[.؟!?,]+', text) if s.strip()]
+        unique_phrases = []
+        for s in phrases:
+            s_lower = s.lower().strip()
+            
+            if not s_lower:
+                continue
+                
+            is_duplicate = False
+            for up in unique_phrases:
+                up_lower = up.lower().strip()
+                similarity = difflib.SequenceMatcher(None, s_lower, up_lower).ratio()
+                
+                if (similarity > 0.8 or 
+                    s_lower in up_lower or 
+                    up_lower in s_lower or
+                    len(set(s_lower.split()) & set(up_lower.split())) > len(s_lower.split()) * 0.7):
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                unique_phrases.append(s)
+        
+        result_text = '. '.join(unique_phrases)
+        
+        
+        if not result_text or len(result_text.split()) > len(input_text.split()) * 2:
+            return input_text
+            
+        return result_text
+        
+    except Exception as e:
+        print(f"Grammar correction failed: {e}")
+        return input_text
 
 
 def get_asl_image_urls(text):
     urls = []
     for word in text.upper().split():
         for char in word:
-            if char.isalpha():
+            if char.isalnum():  
                 filename = f"{char}.jpg"
                 if os.path.exists(os.path.join(ASL_IMAGE_PATH, filename)):
                     urls.append(f"/asl_images/{filename}")
@@ -74,27 +119,56 @@ def voice_to_asl():
     if 'audio' not in request.files:
         return jsonify({'error': 'No audio file provided'}), 400
     audio_file = request.files['audio']
+    
+    filename = audio_file.filename.lower() if audio_file.filename else ''
+    
     try:
-        
         fd, temp_path = tempfile.mkstemp(suffix='.wav')
-        os.close(fd)  
+        os.close(fd)
+        
         try:
-            audio = AudioSegment.from_file(audio_file)
-            audio.export(temp_path, format='wav')
+            if filename.endswith('.wav'):
+                audio_file.save(temp_path)
+            else:
+                try:
+                    audio = AudioSegment.from_file(audio_file)
+                    audio.export(temp_path, format='wav')
+                except Exception as pydub_error:
+                    return jsonify({
+                        'error': f'Audio format not supported. Please use WAV files or install ffmpeg. Error: {str(pydub_error)}'
+                    }), 400
+            
             recognizer = sr.Recognizer()
             with sr.AudioFile(temp_path) as source:
+                recognizer.adjust_for_ambient_noise(source, duration=0.5)
                 audio_data = recognizer.record(source)
+            
             try:
                 text = recognizer.recognize_google(audio_data)
+                print(f"Recognized text: {text}")
+            except sr.UnknownValueError:
+                return jsonify({'error': 'Could not understand the audio. Please speak clearly.'}), 400
+            except sr.RequestError as e:
+                return jsonify({'error': f'Speech recognition service error: {str(e)}'}), 500
             except Exception as e:
                 return jsonify({'error': f'Speech recognition failed: {str(e)}'}), 500
+                
         finally:
-            os.remove(temp_path)
+            
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                
     except Exception as e:
-        return jsonify({'error': f'Audio conversion failed: {str(e)}'}), 500
+        return jsonify({'error': f'Audio processing failed: {str(e)}'}), 500
+    
+    
     corrected = correct_text(text)
     image_urls = get_asl_image_urls(corrected)
-    return jsonify({'corrected_text': corrected, 'asl_image_urls': image_urls})
+    return jsonify({
+        'original_text': text,
+        'corrected_text': corrected, 
+        'asl_image_urls': image_urls
+    })
 
 
 @app.route('/')
